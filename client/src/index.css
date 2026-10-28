@@ -1,0 +1,315 @@
+@import "tailwindcss";
+
+/* Tailwind CSS v4 Class-Based Dark Mode Variant */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-brand-blue: #3984F5;
+  --color-brand-blue-dark: #60A5FA;
+  --color-brand-pink: #F472B6;
+  --color-brand-pink-dark: #F9A8D4;
+  --color-brand-yellow: #FACC15;
+  --color-brand-yellow-dark: #FDE047;
+  --color-bg-light: #F5F8FF;
+  --color-bg-dark: #0B1224;
+  --color-card-light: #FFFFFF;
+  --color-card-dark: #121D33;
+  --color-elevated-dark: #192640;
+  --color-text-main-light: #172554;
+  --color-text-main-dark: #F1F5F9;
+  --color-text-muted-light: #64748B;
+  --color-text-muted-dark: #B6C2D6;
+  --color-border-light: #DCE6F5;
+  --color-border-dark: #2A3A56;
+}
+
+@layer base {
+  :root {
+    /* TravelWise AI+ Light Mode — Soft Blue-White Palette */
+    --bg-page: #F5F8FF;
+    --bg-card: #FFFFFF;
+    --bg-elevated: #FFFFFF;
+    --bg-muted: #EBF2FE;
+
+    /* Main Accent Colors */
+    --primary-blue: #3984F5;
+    --primary-blue-hover: #2563EB;
+    --accent-pink: #F472B6;
+    --accent-pink-hover: #EC4899;
+    --accent-yellow: #FACC15;
+    --accent-yellow-hover: #EAB308;
+
+    /* Typography & Borders */
+    --text-primary: #172554;
+    --text-secondary: #64748B;
+    --text-muted: #94A3B8;
+    --border-subtle: #DCE6F5;
+    --border-card: #DCE6F5;
+
+    /* Realistic Soft Shadows */
+    --shadow-sm: 0 1px 3px rgba(23, 37, 84, 0.05);
+    --shadow-card: 0 4px 16px -2px rgba(23, 37, 84, 0.05), 0 2px 6px -1px rgba(23, 37, 84, 0.03);
+    --shadow-float: 0 16px 32px -6px rgba(57, 132, 245, 0.16), 0 6px 16px -3px rgba(244, 114, 182, 0.12);
+    --shadow-elevated: 0 20px 40px -10px rgba(23, 37, 84, 0.08), 0 0 0 1px #DCE6F5;
+
+    color-scheme: light;
+  }
+
+  .dark {
+    /* TravelWise AI+ Dark Mode — Sophisticated Deep Navy Palette */
+    --bg-page: #0B1224;
+    --bg-card: #121D33;
+    --bg-elevated: #192640;
+    --bg-muted: #15223D;
+
+    /* Main Accent Colors */
+    --primary-blue: #60A5FA;
+    --primary-blue-hover: #93C5FD;
+    --accent-pink: #F9A8D4;
+    --accent-pink-hover: #F472B6;
+    --accent-yellow: #FDE047;
+    --accent-yellow-hover: #FACC15;
+
+    /* Typography & Borders */
+    --text-primary: #F1F5F9;
+    --text-secondary: #B6C2D6;
+    --text-muted: #8292AB;
+    --border-subtle: #2A3A56;
+    --border-card: #2A3A56;
+
+    /* Dark Mode Controlled Depth */
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+    --shadow-card: 0 6px 20px -3px rgba(0, 0, 0, 0.45);
+    --shadow-float: 0 16px 36px -6px rgba(0, 0, 0, 0.6), 0 0 20px rgba(96, 165, 250, 0.12);
+    --shadow-elevated: 0 24px 48px -10px rgba(0, 0, 0, 0.7), 0 0 0 1px #2A3A56;
+
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Plus Jakarta Sans", "Inter", "Segoe UI", Roboto, sans-serif;
+    color: var(--text-primary);
+    background-color: var(--bg-page);
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+
+  #root {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+/* Custom TravelWise Scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(57, 132, 245, 0.3);
+  border-radius: 9999px;
+  backdrop-filter: blur(4px);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(57, 132, 245, 0.6);
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(96, 165, 250, 0.3);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(96, 165, 250, 0.6);
+}
+
+/* Travel-Tech Card Utility Classes */
+.card-travel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 1.25rem;
+  box-shadow: var(--shadow-card);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card-travel:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-float);
+  border-color: rgba(57, 132, 245, 0.4);
+}
+.dark .card-travel:hover {
+  border-color: rgba(96, 165, 250, 0.45);
+}
+
+.card-elevated {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-card);
+  border-radius: 1.25rem;
+  box-shadow: var(--shadow-elevated);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Travel Tech Glass Surfaces */
+.glass-travel {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(220, 230, 245, 0.9);
+  box-shadow: 0 10px 30px -4px rgba(23, 37, 84, 0.06);
+}
+
+.dark .glass-travel {
+  background: rgba(18, 29, 51, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(42, 58, 86, 0.9);
+  box-shadow: 0 16px 36px -6px rgba(0, 0, 0, 0.55);
+}
+
+/* Color Accent Utilities */
+.btn-primary-blue {
+  background-color: var(--primary-blue);
+  color: #FFFFFF;
+  font-weight: 700;
+  border-radius: 0.875rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px -1px rgba(57, 132, 245, 0.35);
+}
+.btn-primary-blue:hover {
+  background-color: var(--primary-blue-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px -1px rgba(57, 132, 245, 0.45);
+}
+.dark .btn-primary-blue {
+  color: #0B1224;
+  box-shadow: 0 4px 14px -1px rgba(96, 165, 250, 0.3);
+}
+
+.btn-accent-pink {
+  background-color: var(--accent-pink);
+  color: #FFFFFF;
+  font-weight: 700;
+  border-radius: 0.875rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px -1px rgba(244, 114, 182, 0.35);
+}
+.btn-accent-pink:hover {
+  background-color: var(--accent-pink-hover);
+  transform: translateY(-1px);
+}
+.dark .btn-accent-pink {
+  color: #0B1224;
+}
+
+.btn-accent-yellow {
+  background-color: var(--accent-yellow);
+  color: #172554;
+  font-weight: 700;
+  border-radius: 0.875rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px -1px rgba(250, 204, 21, 0.35);
+}
+.btn-accent-yellow:hover {
+  background-color: var(--accent-yellow-hover);
+  transform: translateY(-1px);
+}
+.dark .btn-accent-yellow {
+  color: #0B1224;
+}
+
+/* Badges with Blue, Pink, and Yellow */
+.badge-blue {
+  background-color: rgba(57, 132, 245, 0.1);
+  color: #2563EB;
+  border: 1px solid rgba(57, 132, 245, 0.25);
+}
+.dark .badge-blue {
+  background-color: rgba(96, 165, 250, 0.15);
+  color: #93C5FD;
+  border: 1px solid rgba(96, 165, 250, 0.3);
+}
+
+.badge-pink {
+  background-color: rgba(244, 114, 182, 0.12);
+  color: #DB2777;
+  border: 1px solid rgba(244, 114, 182, 0.28);
+}
+.dark .badge-pink {
+  background-color: rgba(249, 168, 212, 0.15);
+  color: #F472B6;
+  border: 1px solid rgba(249, 168, 212, 0.3);
+}
+
+.badge-yellow {
+  background-color: rgba(250, 204, 21, 0.14);
+  color: #B45309;
+  border: 1px solid rgba(250, 204, 21, 0.32);
+}
+.dark .badge-yellow {
+  background-color: rgba(253, 224, 71, 0.15);
+  color: #FDE047;
+  border: 1px solid rgba(253, 224, 71, 0.3);
+}
+
+/* Travel Hero Gradient Banner */
+.bg-travel-hero-gradient {
+  background: linear-gradient(135deg, rgba(57, 132, 245, 0.08) 0%, rgba(244, 114, 182, 0.06) 55%, rgba(250, 204, 21, 0.06) 100%);
+}
+.dark .bg-travel-hero-gradient {
+  background: linear-gradient(135deg, rgba(96, 165, 250, 0.12) 0%, rgba(249, 168, 212, 0.07) 55%, rgba(253, 224, 71, 0.06) 100%);
+}
+
+.text-gradient-travel {
+  background: linear-gradient(135deg, #172554 0%, #3984F5 50%, #F472B6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.dark .text-gradient-travel {
+  background: linear-gradient(135deg, #F1F5F9 0%, #60A5FA 50%, #F9A8D4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Input Fields */
+.input-travel {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-card);
+  color: var(--text-primary);
+  border-radius: 0.875rem;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+.input-travel:focus {
+  outline: none;
+  border-color: var(--primary-blue);
+  box-shadow: 0 0 0 2px rgba(57, 132, 245, 0.2);
+}
+.dark .input-travel {
+  background-color: var(--bg-elevated);
+}
+.dark .input-travel:focus {
+  border-color: var(--primary-blue);
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.25);
+}
+
+/* Accessible focus outline */
+:focus-visible {
+  outline: 2px solid var(--primary-blue);
+  outline-offset: 2px;
+}
+
+/* Accessibility: Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

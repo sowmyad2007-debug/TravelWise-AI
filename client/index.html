@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TravelWise AI+ — Adaptive AI Travel Planner & Budget Guardian</title>
+    <meta name="description" content="AI-powered travel companion that helps you plan affordable trips, manage expenses, discover destinations, and adapt your itinerary when circumstances change." />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233984F5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><polygon points='16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76'/></svg>" />
+    <meta name="theme-color" content="#F5F8FF" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <!-- Pre-hydration Theme Script (Light Theme Default) -->
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem('travelwise_theme');
+          var theme = saved || 'light';
+          if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+            document.documentElement.classList.remove('light');
+            document.documentElement.style.colorScheme = 'dark';
+          } else {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.classList.add('light');
+            document.documentElement.style.colorScheme = 'light';
+          }
+        } catch (e) {
+          document.documentElement.classList.add('light');
+        }
+      })();
+    </script>
+  </head>
+  <body class="bg-[#F5F8FF] text-[#172554] dark:bg-[#0B1224] dark:text-[#F1F5F9] antialiased selection:bg-[#3984F5] selection:text-white transition-colors duration-200">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
