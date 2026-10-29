@@ -2,8 +2,10 @@
   "name": "travelwise-ai-plus",
   "private": true,
   "version": "2.0.0",
+  "workspaces": [
+    "client"
+  ],
   "scripts": {
-    "postinstall": "npm --prefix client install",
     "dev": "npm --prefix client run dev",
     "build": "npm --prefix client run build",
     "preview": "npm --prefix client run preview"
