@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useActiveTrip } from '../context/ActiveTripContext';
 import { api } from '../api/client';
 import { DestinationImage } from '../components/DestinationImage';
@@ -393,6 +393,7 @@ const CANONICAL_AUTOCOMPLETE_OPTIONS = [
 
 export const TripCreate: React.FC = () => {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const { setActiveTripId, refreshTrips } = useActiveTrip();
 
@@ -415,21 +416,41 @@ export const TripCreate: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Pre-fill destination from query parameter if provided
+  // Pre-fill destination from query parameter or router state if provided
   useEffect(() => {
     const dest = searchParams.get('destination');
     if (dest) {
       setDestination(dest);
     }
-    // Set default dates: tomorrow to +3 days
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const returnDay = new Date();
-    returnDay.setDate(returnDay.getDate() + 4);
 
-    setStartDate(tomorrow.toISOString().split('T')[0]);
-    setEndDate(returnDay.toISOString().split('T')[0]);
-  }, [searchParams]);
+    const navState = location.state as {
+      destination?: string;
+      startDate?: string;
+      travelers?: number;
+      budget?: number;
+    } | null;
+
+    if (navState) {
+      if (navState.destination) setDestination(navState.destination);
+      if (navState.startDate) {
+        setStartDate(navState.startDate);
+        const d = new Date(navState.startDate);
+        d.setDate(d.getDate() + 3);
+        setEndDate(d.toISOString().split('T')[0]);
+      }
+      if (navState.travelers) setTravelers(navState.travelers);
+      if (navState.budget) setTotalBudget(navState.budget);
+    } else {
+      // Set default dates: tomorrow to +3 days
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const returnDay = new Date();
+      returnDay.setDate(returnDay.getDate() + 4);
+
+      setStartDate(tomorrow.toISOString().split('T')[0]);
+      setEndDate(returnDay.toISOString().split('T')[0]);
+    }
+  }, [searchParams, location.state]);
 
   const interestOptions = [
     { id: 'nature', label: 'Nature & Scenic Trails', icon: TreePine },
