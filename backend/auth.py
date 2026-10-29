@@ -69,6 +69,7 @@ def require_auth(f):
     return decorated
 
 @auth_bp.route('/register', methods=['POST'])
+@auth_bp.route('/signup', methods=['POST'])
 def register():
     data = request.get_json() or {}
     name = (data.get('name') or '').strip()
@@ -80,16 +81,26 @@ def register():
         return jsonify({'error': 'Full name, email, and password are required.'}), 400
 
     if len(name) < 2:
-        return jsonify({'error': 'Name must be at least 2 characters.'}), 400
+        return jsonify({'error': 'Name must be at least 2 characters long.'}), 400
 
-    email_regex = r'^[\w\.-]+@[\w\.-]+\.\w+$'
-    if not re.match(email_regex, email):
+    if len(name) > 100:
+        return jsonify({'error': 'Name must not exceed 100 characters.'}), 400
+
+    # RFC 5322 compatible email validation
+    email_regex = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+    if len(email) > 254 or not re.match(email_regex, email):
         return jsonify({'error': 'Please provide a valid email address.'}), 400
 
     if len(password) < 8:
         return jsonify({'error': 'Password must be at least 8 characters long.'}), 400
 
-    if password != confirm_password:
+    if len(password) > 128:
+        return jsonify({'error': 'Password must not exceed 128 characters.'}), 400
+
+    if not password.strip():
+        return jsonify({'error': 'Password cannot consist solely of whitespace.'}), 400
+
+    if confirm_password and password != confirm_password:
         return jsonify({'error': 'Passwords do not match.'}), 400
 
     hashed_pw = generate_password_hash(password, method='scrypt')
@@ -97,7 +108,7 @@ def register():
     with get_db() as conn:
         existing = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
         if existing:
-            return jsonify({'error': 'An account with this email already exists. Please log in.'}), 409
+            return jsonify({'error': 'An account with this email address already exists. Please log in or use a different email.'}), 409
 
         cursor = conn.cursor()
         cursor.execute(
@@ -113,6 +124,10 @@ def register():
         'token': token,
         'user': user
     }), 201
+
+@auth_bp.route('/logout', methods=['POST'])
+def logout():
+    return jsonify({'message': 'Logged out successfully.'}), 200
 
 @auth_bp.route('/login', methods=['POST'])
 def login():

@@ -10,7 +10,9 @@ def dict_factory(cursor, row):
     return d
 
 @contextmanager
-def get_db():
+def get_db():
+    from pathlib import Path
+    Path(DATABASE_PATH).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DATABASE_PATH)
     conn.row_factory = dict_factory
     conn.execute("PRAGMA foreign_keys = ON;")

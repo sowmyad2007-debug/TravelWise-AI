@@ -16,9 +16,9 @@ sys.path.insert(0, str(BACKEND_DIR))
 from app import create_app
 from config import PORT, DEBUG
 
+app = create_app()
+
 if __name__ == '__main__':
-    app = create_app()
-    
     print("=" * 72)
     print("  🚀 TravelWise AI+ — Adaptive AI Travel Planner & Budget Guardian")
     print("=" * 72)

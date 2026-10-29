@@ -5,7 +5,7 @@
 [![React](https://img.shields.io/badge/React-19.3-teal.svg)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38bdf8.svg)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/Tests-12%2F12%20Passing-emerald.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-50%2F50%20Passing-emerald.svg)]()
 [![License](https://img.shields.io/badge/License-Academic_Capstone_2.0-teal.svg)]()
 
 > An enterprise-grade, responsive full-stack platform featuring **Adaptive Travel Intelligence 2.0**, **Smart Budget Guardian 2.0 (Three-Tier Modeling)**, **Live Satellite Weather Forecasting (Open-Meteo)**, **Contextual AI Travel Buddy 2.0**, **Minimum Cash Flow Group Debt Optimizer**, and **Full Itinerary Rollback / Undo Auditability**.
@@ -181,7 +181,34 @@ Builds in under 1 second with 0 TypeScript and bundling errors.
 
 ---
 
-## 6. University Demonstration Checklist
+## 7. Production Deployment Guide (Vercel + Render)
+
+### A. Deploy Backend to Render (or Railway / Fly.io)
+1. In [Render Dashboard](https://dashboard.render.com/), click **New +** → **Web Service**.
+2. Connect your GitHub repository: `sowmyad2007-debug/AI_Capstone-Project`.
+3. Set the service settings:
+   - **Environment**: `Python 3`
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `gunicorn wsgi:app` (or `gunicorn run_app:app`)
+4. Add the following **Environment Variables**:
+   - `SECRET_KEY`: `<generate a random secure string>`
+   - `FLASK_ENV`: `production`
+   - `CORS_ORIGINS`: `https://travelwiseai-taupe.vercel.app,http://localhost:5173`
+   - `GEMINI_API_KEY`: `<your Google Gemini API key (optional)>`
+5. Click **Deploy Web Service**. Once deployed, copy your backend service URL (e.g., `https://travelwise-backend.onrender.com`).
+
+### B. Configure Frontend on Vercel
+1. In your [Vercel Dashboard](https://vercel.com/) for project `travelwiseai-taupe`:
+2. Navigate to **Settings** → **Environment Variables**.
+3. Add a new variable:
+   - **Key**: `VITE_API_BASE_URL`
+   - **Value**: `https://<your-render-backend-url>/api` *(e.g. `https://travelwise-backend.onrender.com/api`)*
+4. Go to **Deployments** → Click **Redeploy** on the latest commit.
+5. All public user registration (`/signup`), login (`/login`), itinerary generation, receipts, and budget tracking will now connect directly to your live production backend!
+
+---
+
+## 8. University Demonstration Checklist
 
 | # | Evaluation Scenario | Action in Web App | Expected Verified Result |
 |---|---|---|---|

@@ -4,7 +4,7 @@ from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash
 
-from config import SECRET_KEY, PORT, DEBUG
+from config import SECRET_KEY, PORT, DEBUG, CORS_ORIGINS
 from database import init_db, get_db
 from auth import auth_bp
 from trips import trips_bp
@@ -21,8 +21,43 @@ def create_app():
     app = Flask(__name__, static_folder='../client/dist', static_url_path='')
     app.config['SECRET_KEY'] = SECRET_KEY
 
-    # Enable CORS for frontend Vite development server & production
-    CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
+    # Enable CORS for frontend Vite dev server & production (Vercel, Render)
+    origin_list = [o.strip() for o in CORS_ORIGINS.split(',') if o.strip()]
+    if '*' in origin_list or not origin_list:
+        CORS(app, resources={r"/api/*": {"origins": "*"}},
+             allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+             methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+    else:
+        CORS(app, resources={r"/api/*": {"origins": origin_list}},
+             supports_credentials=True,
+             allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+             methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+
+    @app.before_request
+    def handle_options_preflight():
+        from flask import request
+        if request.method == 'OPTIONS' and request.path.startswith('/api/'):
+            resp = app.make_default_options_response()
+            req_origin = request.headers.get('Origin', '*')
+            resp.headers['Access-Control-Allow-Origin'] = req_origin
+            resp.headers['Access-Control-Allow-Credentials'] = 'true'
+            resp.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
+            resp.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+            return resp
+
+    @app.after_request
+    def add_cors_headers(response):
+        from flask import request
+        req_origin = request.headers.get('Origin')
+        if req_origin:
+            if '*' in origin_list or not origin_list or req_origin in origin_list or 'vercel.app' in req_origin or 'localhost' in req_origin:
+                response.headers['Access-Control-Allow-Origin'] = req_origin
+                response.headers['Access-Control-Allow-Credentials'] = 'true'
+                response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
+                response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        elif '*' in origin_list or not origin_list:
+            response.headers['Access-Control-Allow-Origin'] = '*'
+        return response
 
     # Initialize SQLite database
     init_db()
@@ -136,6 +171,15 @@ def create_app():
 
     @app.errorhandler(500)
     def internal_error(e):
+        return jsonify({'error': 'Internal server error. Please try again later.'}), 500
+
+    @app.errorhandler(Exception)
+    def handle_unhandled_exception(e):
+        from werkzeug.exceptions import HTTPException
+        if isinstance(e, HTTPException):
+            return jsonify({'error': e.description}), e.code
+        if DEBUG:
+            app.logger.exception(e)
         return jsonify({'error': 'Internal server error. Please try again later.'}), 500
 
     return app

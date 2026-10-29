@@ -64,6 +64,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    try {
+      api.logout();
+    } catch {
+      // Ignored - client cleanup takes precedence
+    }
     localStorage.removeItem('travelwise_token');
     localStorage.removeItem('travelwise_active_trip_id');
     setToken(null);

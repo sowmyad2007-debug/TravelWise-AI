@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: travelwise-backend
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: SECRET_KEY
+        generateValue: true
+      - key: FLASK_ENV
+        value: production
+      - key: CORS_ORIGINS
+        value: https://travelwiseai-taupe.vercel.app,http://localhost:5173
+      - key: GEMINI_API_KEY
+        sync: false

@@ -1,4 +1,41 @@
-const API_BASE = '/api';
+/**
+ * Resolves the backend API base URL:
+ * 1. Reads import.meta.env.VITE_API_BASE_URL or import.meta.env.VITE_API_URL
+ * 2. Normalizes whitespace and trailing slashes
+ * 3. Appends /api if given a root backend domain (e.g. https://backend.onrender.com -> https://backend.onrender.com/api)
+ * 4. Defaults to '/api' for local development with Vite dev server proxy
+ */
+export function resolveApiBase(): string {
+  const envUrl = (
+    import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.VITE_API_URL ||
+    ''
+  ).trim();
+
+  if (envUrl) {
+    const cleanUrl = envUrl.replace(/\/+$/, '');
+    if ((cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) && !cleanUrl.endsWith('/api')) {
+      return `${cleanUrl}/api`;
+    }
+    return cleanUrl;
+  }
+
+  // Helpful console guidance if running on deployed frontend without backend URL
+  if (typeof window !== 'undefined') {
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (!isLocalhost) {
+      console.warn(
+        '[TravelWise AI+] Notice: VITE_API_BASE_URL is not set. ' +
+        'API calls are falling back to relative "/api". ' +
+        'In your Vercel project settings, add VITE_API_BASE_URL=https://<your-render-backend-url>/api and trigger a redeploy.'
+      );
+    }
+  }
+
+  return '/api';
+}
+
+export const API_BASE = resolveApiBase();
 
 export class ApiError extends Error {
   status: number;
@@ -25,10 +62,20 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${cleanEndpoint}`, {
+      ...options,
+      headers,
+    });
+  } catch (err: any) {
+    throw new ApiError(
+      'Unable to connect to TravelWise AI+ server. Please check your internet connection or verify the backend service is running.',
+      0,
+      err
+    );
+  }
 
   const contentType = response.headers.get('content-type');
   const data = contentType && contentType.includes('application/json')
@@ -36,7 +83,14 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     : null;
 
   if (!response.ok) {
-    const errorMsg = data?.error || data?.message || `Request failed with status ${response.status}`;
+    let errorMsg = data?.error || data?.message;
+    if (!errorMsg) {
+      if (response.status === 404) {
+        errorMsg = 'API endpoint not found (404). Please ensure the backend server is deployed and VITE_API_BASE_URL is set in Vercel project environment variables.';
+      } else {
+        errorMsg = `Request failed with status ${response.status}`;
+      }
+    }
     throw new ApiError(errorMsg, response.status, data);
   }
 
@@ -49,7 +103,8 @@ export async function downloadBlob(endpoint: string, filename: string): Promise<
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  const response = await fetch(`${API_BASE}${endpoint}`, { headers });
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const response = await fetch(`${API_BASE}${cleanEndpoint}`, { headers });
   if (!response.ok) {
     throw new Error('Download failed');
   }
@@ -70,7 +125,8 @@ export async function getAuthenticatedBlobUrl(endpoint: string): Promise<string>
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  const response = await fetch(`${API_BASE}${endpoint}`, { headers });
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const response = await fetch(`${API_BASE}${cleanEndpoint}`, { headers });
   if (!response.ok) {
     throw new Error('File not accessible');
   }
@@ -81,7 +137,9 @@ export async function getAuthenticatedBlobUrl(endpoint: string): Promise<string>
 export const api = {
   // Auth
   register: (payload: any) => request<any>('/auth/register', { method: 'POST', body: JSON.stringify(payload) }),
+  signup: (payload: any) => request<any>('/auth/signup', { method: 'POST', body: JSON.stringify(payload) }),
   login: (payload: any) => request<any>('/auth/login', { method: 'POST', body: JSON.stringify(payload) }),
+  logout: () => request<any>('/auth/logout', { method: 'POST' }).catch(() => {}),
   getCurrentUser: () => request<any>('/auth/me'),
   updateProfile: (payload: any) => request<any>('/auth/profile', { method: 'PUT', body: JSON.stringify(payload) }),
   changePassword: (payload: any) => request<any>('/auth/change-password', { method: 'POST', body: JSON.stringify(payload) }),

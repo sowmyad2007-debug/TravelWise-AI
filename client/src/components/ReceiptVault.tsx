@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { api } from '../api/client';
+import { api, API_BASE } from '../api/client';
 import { Trip, Receipt, ReceiptSummary } from '../types';
 import {
   Receipt as ReceiptIcon,
@@ -661,7 +661,7 @@ export const ReceiptVault: React.FC<ReceiptVaultProps> = ({ trips, activeTripId,
                     </div>
                   ) : (
                     <img
-                      src={`/api/receipts/${rec.id}/file`}
+                      src={`${API_BASE}/receipts/${rec.id}/file`}
                       alt={rec.title}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       loading="lazy"
@@ -1417,13 +1417,13 @@ export const ReceiptVault: React.FC<ReceiptVaultProps> = ({ trips, activeTripId,
                 </div>
               ) : activeReceipt.mime_type === 'application/pdf' ? (
                 <iframe
-                  src={previewBlobUrl || `/api/receipts/${activeReceipt.id}/file`}
+                  src={previewBlobUrl || `${API_BASE}/receipts/${activeReceipt.id}/file`}
                   title={activeReceipt.title}
                   className="w-full h-80 rounded-xl"
                 />
               ) : (
                 <img
-                  src={previewBlobUrl || `/api/receipts/${activeReceipt.id}/file`}
+                  src={previewBlobUrl || `${API_BASE}/receipts/${activeReceipt.id}/file`}
                   alt={activeReceipt.title}
                   className="max-h-96 rounded-xl object-contain shadow-sm"
                 />
