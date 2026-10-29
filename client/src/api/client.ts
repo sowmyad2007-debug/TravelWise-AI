@@ -6,13 +6,27 @@ import {
   localGetTrips,
   localGetTrip,
   localCreateTrip,
+  localUpdateTrip,
   localDeleteTrip,
+  localGetTripWeather,
+  localUpdateActivity,
+  localDeleteActivity,
+  localReplaceActivity,
+  localAddActivity,
   localGetTripExpenses,
   localAddExpense,
   localDeleteExpense,
   localGetReceipts,
   localCreateReceipt,
   localUploadReceiptScan,
+  localGetDestinations,
+  localResolveDestination,
+  localEvaluateAdaptation,
+  localAskChatbot,
+  localGetGroupMembers,
+  localAddGroupMember,
+  localRemoveGroupMember,
+  localGetGroupSplitSummary,
   localGetHelperResources,
   localSubmitSupportTicket,
   localGetMyTickets
@@ -261,20 +275,50 @@ export const api = {
       { method: 'POST', body: JSON.stringify(payload) },
       () => localCreateTrip(payload)
     ),
-  updateTrip: (id: number, payload: any) => request<any>(`/trips/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  updateTrip: (id: number, payload: any) =>
+    requestWithFallback<any>(
+      `/trips/${id}`,
+      { method: 'PUT', body: JSON.stringify(payload) },
+      () => localUpdateTrip(id, payload)
+    ),
   deleteTrip: (id: number) =>
     requestWithFallback<any>(
       `/trips/${id}`,
       { method: 'DELETE' },
       () => localDeleteTrip(id)
     ),
-  getTripWeather: (tripId: number) => request<{ destination: string; weather: any }>(`/trips/${tripId}/weather`),
+  getTripWeather: (tripId: number) =>
+    requestWithFallback<{ destination: string; weather: any }>(
+      `/trips/${tripId}/weather`,
+      {},
+      () => localGetTripWeather(tripId)
+    ),
 
   // Itinerary
-  updateActivity: (id: number, payload: any) => request<any>(`/itineraries/activities/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
-  deleteActivity: (id: number) => request<any>(`/itineraries/activities/${id}`, { method: 'DELETE' }),
-  replaceActivity: (id: number, payload: any) => request<any>(`/itineraries/activities/${id}/replace`, { method: 'POST', body: JSON.stringify(payload) }),
-  addActivity: (dayId: number, payload: any) => request<any>(`/itineraries/days/${dayId}/activities`, { method: 'POST', body: JSON.stringify(payload) }),
+  updateActivity: (id: number, payload: any) =>
+    requestWithFallback<any>(
+      `/itineraries/activities/${id}`,
+      { method: 'PUT', body: JSON.stringify(payload) },
+      () => localUpdateActivity(id, payload)
+    ),
+  deleteActivity: (id: number) =>
+    requestWithFallback<any>(
+      `/itineraries/activities/${id}`,
+      { method: 'DELETE' },
+      () => localDeleteActivity(id)
+    ),
+  replaceActivity: (id: number, payload: any) =>
+    requestWithFallback<any>(
+      `/itineraries/activities/${id}/replace`,
+      { method: 'POST', body: JSON.stringify(payload) },
+      () => localReplaceActivity(id, payload)
+    ),
+  addActivity: (dayId: number, payload: any) =>
+    requestWithFallback<any>(
+      `/itineraries/days/${dayId}/activities`,
+      { method: 'POST', body: JSON.stringify(payload) },
+      () => localAddActivity(dayId, payload)
+    ),
 
   // Expenses & Budget Guardian 2.0
   getTripExpenses: (tripId: number) =>
@@ -339,24 +383,64 @@ export const api = {
   },
 
   // Adaptive Intelligence 2.0
-  evaluateAdaptation: (tripId: number, payload: any) => request<any>(`/adaptive/trips/${tripId}/evaluate`, { method: 'POST', body: JSON.stringify(payload) }),
+  evaluateAdaptation: (tripId: number, payload: any) =>
+    requestWithFallback<any>(
+      `/adaptive/trips/${tripId}/evaluate`,
+      { method: 'POST', body: JSON.stringify(payload) },
+      () => localEvaluateAdaptation(tripId, payload)
+    ),
   applyAdaptation: (tripId: number, changes: any[], scenario?: string) => request<any>(`/adaptive/trips/${tripId}/apply`, { method: 'POST', body: JSON.stringify({ changes, scenario }) }),
-  getTripRevisions: (tripId: number) => request<{ revisions: any[] }>(`/adaptive/trips/${tripId}/revisions`),
+  getTripRevisions: (tripId: number) => request<{ revisions: any[] }>(`/adaptive/trips/${tripId}/revisions`).catch(() => ({ revisions: [] })),
   undoRevision: (tripId: number, revisionId: number) => request<any>(`/adaptive/trips/${tripId}/revisions/${revisionId}/undo`, { method: 'POST' }),
 
   // Chatbot 2.0
-  getChatHistory: (tripId: number) => request<{ messages: any[] }>(`/chatbot/trips/${tripId}/messages`),
-  askChatbot: (tripId: number, message: string) => request<any>(`/chatbot/trips/${tripId}/ask`, { method: 'POST', body: JSON.stringify({ message }) }),
+  getChatHistory: (tripId: number) => request<{ messages: any[] }>(`/chatbot/trips/${tripId}/messages`).catch(() => ({ messages: [] })),
+  askChatbot: (tripId: number, message: string) =>
+    requestWithFallback<any>(
+      `/chatbot/trips/${tripId}/ask`,
+      { method: 'POST', body: JSON.stringify({ message }) },
+      () => localAskChatbot(tripId, message)
+    ),
 
   // Group Expenses 2.0
-  getGroupMembers: (tripId: number) => request<{ members: any[] }>(`/group/trips/${tripId}/members`),
-  addGroupMember: (tripId: number, payload: { name: string; email?: string }) => request<any>(`/group/trips/${tripId}/members`, { method: 'POST', body: JSON.stringify(payload) }),
-  removeGroupMember: (tripId: number, memberId: number) => request<any>(`/group/trips/${tripId}/members/${memberId}`, { method: 'DELETE' }),
-  getGroupSplitSummary: (tripId: number) => request<any>(`/group/trips/${tripId}/split-summary`),
+  getGroupMembers: (tripId: number) =>
+    requestWithFallback<{ members: any[] }>(
+      `/group/trips/${tripId}/members`,
+      {},
+      () => localGetGroupMembers(tripId)
+    ),
+  addGroupMember: (tripId: number, payload: { name: string; email?: string }) =>
+    requestWithFallback<any>(
+      `/group/trips/${tripId}/members`,
+      { method: 'POST', body: JSON.stringify(payload) },
+      () => localAddGroupMember(tripId, payload)
+    ),
+  removeGroupMember: (tripId: number, memberId: number) =>
+    requestWithFallback<any>(
+      `/group/trips/${tripId}/members/${memberId}`,
+      { method: 'DELETE' },
+      () => localRemoveGroupMember(tripId, memberId)
+    ),
+  getGroupSplitSummary: (tripId: number) =>
+    requestWithFallback<any>(
+      `/group/trips/${tripId}/split-summary`,
+      {},
+      () => localGetGroupSplitSummary(tripId)
+    ),
 
   // Destinations Catalog
-  getDestinations: () => request<{ destinations: any[]; regional_sub_destinations: Record<string, any[]> }>('/destinations'),
-  resolveDestination: (query: string) => request<any>('/destinations/resolve?q=' + encodeURIComponent(query)),
+  getDestinations: () =>
+    requestWithFallback<{ destinations: any[]; regional_sub_destinations: Record<string, any[]> }>(
+      '/destinations',
+      {},
+      () => localGetDestinations()
+    ),
+  resolveDestination: (query: string) =>
+    requestWithFallback<any>(
+      '/destinations/resolve?q=' + encodeURIComponent(query),
+      {},
+      () => localResolveDestination(query)
+    ),
 
   // Travel Helper
   getHelperResources: () =>

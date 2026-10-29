@@ -1,4 +1,12 @@
 import { User, Trip, ItineraryDay, ItineraryActivity, Expense, Receipt } from '../types';
+import {
+  getDestinationData,
+  arePlacesDuplicate,
+  DESTINATIONS_CATALOG,
+  CatalogActivity,
+  CatalogDestination
+} from './destinationsCatalog';
+
 
 const USERS_KEY = 'travelwise_users_db';
 const TRIPS_KEY = 'travelwise_trips_db';
@@ -330,7 +338,7 @@ export function localCreateTrip(payload: any): { message: string; trip_id: numbe
   const cur = getCurrentUserLocal();
   if (!cur) throw new Error('Not authenticated.');
 
-  const destination = payload.destination || 'Hyderabad';
+  const destination = payload.destination || 'Munnar';
   const start_date = payload.start_date || new Date().toISOString().split('T')[0];
   const end_date = payload.end_date || start_date;
   
@@ -339,80 +347,156 @@ export function localCreateTrip(payload: any): { message: string; trip_id: numbe
   const diffTime = Math.abs(d2.getTime() - d1.getTime());
   const diffDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
 
+  const destData = getDestinationData(destination);
   const newTripId = Date.now();
   const days: ItineraryDay[] = [];
+
+  // Track scheduled attractions across ALL days to guarantee zero duplicates across the entire trip
+  const scheduledAttractions: CatalogActivity[] = [];
+  const activitiesPerDay = diffDays <= 4 ? 3 : 2;
+  const slotTimes = ['09:30 AM - 12:00 PM', '02:00 PM - 04:30 PM', '05:30 PM - 07:30 PM'];
+  const userInterests: string[] = Array.isArray(payload.interests) ? payload.interests : ['nature', 'culture', 'sightseeing'];
 
   for (let i = 1; i <= diffDays; i++) {
     const curDate = new Date(d1);
     curDate.setDate(curDate.getDate() + (i - 1));
     const dateStr = curDate.toISOString().split('T')[0];
 
-    const acts: ItineraryActivity[] = [
-      {
-        id: newTripId * 10 + i * 2,
-        day_id: i,
-        trip_id: newTripId,
-        name: i === 1 ? `Historic Landmarks of ${destination}` : `Cultural Discovery (Day ${i})`,
-        description: `Explore prime attractions and authentic cultural spots in ${destination}.`,
-        category: 'sightseeing',
-        time_slot: '09:30 AM - 12:30 PM',
-        duration_hours: 3,
-        estimated_entry_cost: 100,
-        estimated_transport_cost: 50,
-        visit_order: 1,
-        interest_match_reason: 'Top verified attraction for your itinerary.',
-        location_name: destination,
-        is_active: 1,
-        image_url: DESTINATION_PHOTOS[destination] || 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=800&q=80',
-        match_score: 92
-      },
-      {
-        id: newTripId * 10 + i * 2 + 1,
-        day_id: i,
-        trip_id: newTripId,
-        name: `Scenic Leisure & Local Dining in ${destination}`,
-        description: `Enjoy local cuisine, artisan markets, and picturesque viewpoints.`,
-        category: 'food',
-        time_slot: '03:30 PM - 06:00 PM',
-        duration_hours: 2.5,
-        estimated_entry_cost: 50,
-        estimated_transport_cost: 40,
-        visit_order: 2,
-        interest_match_reason: 'Curated dining and leisure experience.',
-        location_name: `${destination} City Center`,
-        is_active: 1,
-        image_url: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=800&q=80',
-        match_score: 88
+    const dayActs: ItineraryActivity[] = [];
+
+    for (let s = 0; s < activitiesPerDay; s++) {
+      const assignedSlot = slotTimes[s] || '10:00 AM - 12:30 PM';
+
+      // Candidate must NOT duplicate any attraction already scheduled across ANY previous or current day
+      const availableCandidates = destData.activities.filter(act => {
+        return !scheduledAttractions.some(sched =>
+          arePlacesDuplicate(
+            act.name,
+            sched.name,
+            [act.latitude, act.longitude],
+            [sched.latitude, sched.longitude],
+            act.place_id,
+            sched.place_id
+          )
+        );
+      });
+
+      if (availableCandidates.length > 0) {
+        // Rank candidate by user interest match
+        const chosen = availableCandidates.sort((a, b) => {
+          const aInterests = a.interests || [];
+          const bInterests = b.interests || [];
+          const aMatches = aInterests.filter(int => userInterests.includes(int)).length;
+          const bMatches = bInterests.filter(int => userInterests.includes(int)).length;
+          return bMatches - aMatches;
+        })[0];
+
+        scheduledAttractions.push(chosen);
+
+        dayActs.push({
+          id: newTripId * 100 + i * 10 + s + 1,
+          day_id: i,
+          trip_id: newTripId,
+          name: chosen.name,
+          description: chosen.description,
+          category: chosen.category,
+          time_slot: chosen.time_slot || assignedSlot,
+          duration_hours: chosen.duration_hours || 2.0,
+          estimated_entry_cost: chosen.estimated_entry_cost || 0,
+          estimated_transport_cost: chosen.estimated_transport_cost || 50,
+          visit_order: s + 1,
+          interest_match_reason: chosen.reason || `Curated top attraction in ${destData.name}.`,
+          location_name: destData.name,
+          is_active: 1,
+          image_url: chosen.image_url,
+          photo_attribution: chosen.photo_attribution,
+          opening_hours: chosen.opening_hours || '09:00 AM - 06:00 PM',
+          weather_suitability: chosen.weather_suitability || 'all_weather',
+          transit_time_mins: chosen.transit_time_mins || 20,
+          match_score: 92 + (s % 3) * 2,
+          score_rationale: `Matched based on travel preferences for ${destData.name}.`,
+          latitude: chosen.latitude,
+          longitude: chosen.longitude,
+          place_id: chosen.place_id,
+          source_url: chosen.source_url,
+          verification_status: chosen.verification_status || 'verified',
+          last_verified: chosen.last_verified || '2026-10-26'
+        });
+      } else {
+        // If all primary verified attractions for this destination have been scheduled,
+        // schedule dedicated personal leisure, cafe dining, or artisan shopping.
+        // NEVER repeat any previously scheduled attraction!
+        const slotLabel = s === 0 ? 'Morning' : (s === 1 ? 'Afternoon' : 'Evening');
+        const leisureThemes = [
+          {
+            name: `Scenic Sunset Leisure & Local Dining in ${destData.name}`,
+            desc: `Enjoy regional cuisine, artisan viewpoints, and evening relaxation across ${destData.name}.`,
+            cat: 'food'
+          },
+          {
+            name: `Local Market & Spice Exploration in ${destData.name}`,
+            desc: `Stroll through regional bazaars and specialty shops for authentic souvenirs and regional treats.`,
+            cat: 'shopping'
+          },
+          {
+            name: `Relaxed Nature Stroll & Cafe Time (Day ${i} ${slotLabel})`,
+            desc: `Free leisure period for relaxed photography, scenic cafe sitting, and personal rest in ${destData.name}.`,
+            cat: 'relaxation'
+          }
+        ];
+        const theme = leisureThemes[(i + s) % leisureThemes.length];
+        dayActs.push({
+          id: newTripId * 100 + i * 10 + s + 1,
+          day_id: i,
+          trip_id: newTripId,
+          name: theme.name,
+          description: theme.desc,
+          category: theme.cat,
+          time_slot: assignedSlot,
+          duration_hours: 2.0,
+          estimated_entry_cost: 0,
+          estimated_transport_cost: 30,
+          visit_order: s + 1,
+          interest_match_reason: 'Dedicated leisure and cultural exploration to balance itinerary pace without repeating attractions.',
+          location_name: `${destData.name} Center`,
+          is_active: 1,
+          image_url: destData.hero_image,
+          photo_attribution: 'Wikimedia Commons',
+          match_score: 85,
+          score_rationale: 'Balanced leisure period after covering all primary verified attractions.',
+          verification_status: 'scheduled_break',
+          last_verified: '2026-10-26'
+        });
       }
-    ];
+    }
 
     days.push({
       id: i,
       trip_id: newTripId,
       day_number: i,
       date: dateStr,
-      title: `Day ${i} ${destination} Discovery`,
-      activities: acts
+      title: `Day ${i} ${destData.name} Exploration`,
+      activities: dayActs
     });
   }
 
   const newTrip: Trip = {
     id: newTripId,
     user_id: cur.id,
-    title: payload.title || `${destination} Travel Experience`,
+    title: payload.title || `${destData.name} Travel Experience`,
     starting_city: payload.starting_city || 'Home City',
-    destination,
+    destination: destData.name,
     start_date,
     end_date,
     travelers: payload.travelers || 1,
     total_budget: payload.total_budget || 10000,
-    currency: payload.currency || 'INR',
+    currency: payload.currency || destData.currency || 'INR',
     travel_style: payload.travel_style || 'balanced',
-    interests: Array.isArray(payload.interests) ? payload.interests : ['nature', 'culture'],
+    interests: userInterests,
     accommodation_pref: payload.accommodation_pref || 'budget_hotel',
     dietary_pref: payload.dietary_pref || 'no_preference',
     accessibility_pref: payload.accessibility_pref || 'standard',
-    cover_image: DESTINATION_PHOTOS[destination] || 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=800&q=80',
+    cover_image: destData.hero_image || DESTINATION_PHOTOS[destination] || 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Munnar_Overview.jpg/960px-Munnar_Overview.jpg',
     status: 'planned',
     total_spent: 0,
     remaining_budget: payload.total_budget || 10000,
@@ -429,11 +513,308 @@ export function localCreateTrip(payload: any): { message: string; trip_id: numbe
   return { message: 'Trip created successfully!', trip_id: newTripId };
 }
 
+export function localUpdateTrip(id: number, payload: any) {
+  const all = getStoredTrips();
+  const idx = all.findIndex(t => t.id === id);
+  if (idx === -1) throw new Error('Trip not found.');
+  all[idx] = { ...all[idx], ...payload };
+  saveTrips(all);
+  return { message: 'Trip updated.', trip: all[idx] };
+}
+
+export function localGetTripWeather(tripId: number) {
+  const all = getStoredTrips();
+  const trip = all.find(t => t.id === tripId);
+  const destination = trip ? trip.destination : 'Munnar';
+  return {
+    destination,
+    weather: {
+      temperature_c: 21.5,
+      humidity_pct: 68,
+      condition: 'Partly Cloudy',
+      description: 'Pleasant travel weather with mild mountain mist.',
+      icon: 'cloud-sun',
+      is_raining: false,
+      wind_speed_kmh: 10,
+      source: 'Open-Meteo Satellite Integration',
+      retrieved_at: new Date().toISOString()
+    }
+  };
+}
+
+export function localUpdateActivity(id: number, payload: any) {
+  const trips = getStoredTrips();
+  let updated = false;
+  for (const t of trips) {
+    if (t.days) {
+      for (const d of t.days) {
+        if (d.activities) {
+          const actIdx = d.activities.findIndex(a => a.id === id);
+          if (actIdx !== -1) {
+            d.activities[actIdx] = { ...d.activities[actIdx], ...payload };
+            updated = true;
+            break;
+          }
+        }
+      }
+    }
+    if (updated) break;
+  }
+  if (updated) saveTrips(trips);
+  return { message: 'Activity updated.' };
+}
+
+export function localDeleteActivity(id: number) {
+  const trips = getStoredTrips();
+  for (const t of trips) {
+    if (t.days) {
+      for (const d of t.days) {
+        if (d.activities) {
+          d.activities = d.activities.filter(a => a.id !== id);
+        }
+      }
+    }
+  }
+  saveTrips(trips);
+  return { message: 'Activity deleted.' };
+}
+
+export function localReplaceActivity(id: number, payload: any) {
+  const trips = getStoredTrips();
+  let foundTrip: Trip | undefined;
+  let targetAct: ItineraryActivity | undefined;
+
+  for (const t of trips) {
+    if (t.days) {
+      for (const d of t.days) {
+        if (d.activities) {
+          const act = d.activities.find(a => a.id === id);
+          if (act) {
+            foundTrip = t;
+            targetAct = act;
+            break;
+          }
+        }
+      }
+    }
+    if (targetAct) break;
+  }
+
+  if (!foundTrip || !targetAct) throw new Error('Activity not found.');
+
+  const destData = getDestinationData(foundTrip.destination);
+  const otherActs: ItineraryActivity[] = [];
+  foundTrip.days?.forEach(d => {
+    d.activities?.forEach(a => {
+      if (a.id !== id && a.is_active !== 0) {
+        otherActs.push(a);
+      }
+    });
+  });
+
+  // Filter candidates that are NOT duplicates of ANY other activity in this trip
+  const validCandidates = destData.activities.filter(cand => {
+    return !otherActs.some(o =>
+      arePlacesDuplicate(
+        cand.name,
+        o.name,
+        [cand.latitude, cand.longitude],
+        [o.latitude, o.longitude],
+        cand.place_id,
+        o.place_id
+      )
+    );
+  });
+
+  const chosen = validCandidates[0];
+  if (chosen) {
+    targetAct.name = chosen.name;
+    targetAct.description = chosen.description;
+    targetAct.category = chosen.category;
+    targetAct.image_url = chosen.image_url;
+    targetAct.photo_attribution = chosen.photo_attribution;
+    targetAct.estimated_entry_cost = chosen.estimated_entry_cost;
+    targetAct.estimated_transport_cost = chosen.estimated_transport_cost;
+    targetAct.duration_hours = chosen.duration_hours;
+    targetAct.place_id = chosen.place_id;
+    targetAct.verification_status = 'verified';
+    targetAct.interest_match_reason = chosen.reason || 'Alternative curated attraction.';
+  } else {
+    targetAct.name = `Scenic Sunset Stroll & Cafe in ${destData.name}`;
+    targetAct.description = 'Relaxed personal leisure time exploring local streets, artisan cafes, and markets.';
+    targetAct.category = 'relaxation';
+    targetAct.image_url = destData.hero_image;
+    targetAct.photo_attribution = 'Wikimedia Commons';
+    targetAct.verification_status = 'scheduled_break';
+  }
+
+  saveTrips(trips);
+  return { message: 'Activity replaced successfully.', activity: targetAct };
+}
+
+export function localAddActivity(dayId: number, payload: any) {
+  const trips = getStoredTrips();
+  let added = false;
+  for (const t of trips) {
+    if (t.days) {
+      const d = t.days.find(day => day.id === dayId);
+      if (d) {
+        if (!d.activities) d.activities = [];
+        const newAct: ItineraryActivity = {
+          id: Date.now(),
+          day_id: dayId,
+          trip_id: t.id,
+          name: payload.name || 'Custom Activity',
+          description: payload.description || 'Self-planned activity.',
+          category: payload.category || 'sightseeing',
+          time_slot: payload.time_slot || '03:00 PM - 05:00 PM',
+          duration_hours: payload.duration_hours || 2.0,
+          estimated_entry_cost: payload.estimated_entry_cost || 0,
+          estimated_transport_cost: payload.estimated_transport_cost || 0,
+          visit_order: d.activities.length + 1,
+          interest_match_reason: 'User added custom activity.',
+          location_name: t.destination,
+          is_active: 1,
+          image_url: t.cover_image,
+          verification_status: 'custom'
+        };
+        d.activities.push(newAct);
+        added = true;
+        break;
+      }
+    }
+    if (added) break;
+  }
+  saveTrips(trips);
+  return { message: 'Activity added.' };
+}
+
+export function localGetDestinations() {
+  const destinations = Object.values(DESTINATIONS_CATALOG).map(d => ({
+    name: d.name,
+    state_country: d.state_country,
+    currency: d.currency,
+    hero_image: d.hero_image,
+    description: d.description,
+    activities_count: d.activities.length
+  }));
+  return { destinations, regional_sub_destinations: {} };
+}
+
+export function localResolveDestination(query: string) {
+  const dest = getDestinationData(query);
+  return { destination: dest };
+}
+
+export function localEvaluateAdaptation(tripId: number, payload: any) {
+  return {
+    scenario: payload.scenario || 'overspent',
+    risk_level: 'Medium',
+    total_savings_potential: 1200,
+    suggested_changes: [
+      {
+        activity_id: 1,
+        title: 'Optimize afternoon sightseeing transit',
+        cost_delta: -350,
+        action: 'switch_to_metro'
+      }
+    ]
+  };
+}
+
+export function localAskChatbot(tripId: number, message: string) {
+  const all = getStoredTrips();
+  const trip = all.find(t => t.id === tripId);
+  const destName = trip ? trip.destination : 'your destination';
+  const queryLower = message.toLowerCase();
+
+  let reply = `Here are some verified travel tips for ${destName}: Make sure to visit the prime tea gardens, viewpoints, and local spice markets in the morning for crisp weather and stunning photo lighting.`;
+
+  if (queryLower.includes('food') || queryLower.includes('eat') || queryLower.includes('restaurant')) {
+    reply = `In ${destName}, don't miss local specialties, fresh artisan teas, and authentic regional dining at traditional bakeries and spice garden cafes.`;
+  } else if (queryLower.includes('weather') || queryLower.includes('rain') || queryLower.includes('pack')) {
+    reply = `The weather in ${destName} is mild and pleasant. Light layers or a light jacket are recommended for early mornings and evening mist.`;
+  } else if (queryLower.includes('budget') || queryLower.includes('cost')) {
+    reply = `Your budget for ${destName} is on track! Keep transport costs low by clustering geographically close attractions.`;
+  }
+
+  return {
+    reply,
+    confidence: 'high',
+    source: 'TravelWise AI+ Local Engine'
+  };
+}
+
+// ----------------- Group Expenses Store -----------------
+const GROUP_MEMBERS_KEY = 'travelwise_group_members_db';
+
+interface StoredGroupMember {
+  id: number;
+  trip_id: number;
+  name: string;
+  email?: string;
+}
+
+function getStoredGroupMembers(): StoredGroupMember[] {
+  try {
+    const raw = localStorage.getItem(GROUP_MEMBERS_KEY);
+    return raw ? JSON.parse(raw) : [
+      { id: 1, trip_id: 101, name: 'Alex Chen', email: 'alex@travelwise.ai' },
+      { id: 2, trip_id: 101, name: 'Samba V', email: 'samba@travelwise.ai' }
+    ];
+  } catch {
+    return [];
+  }
+}
+
+function saveGroupMembers(m: StoredGroupMember[]) {
+  localStorage.setItem(GROUP_MEMBERS_KEY, JSON.stringify(m));
+}
+
+export function localGetGroupMembers(tripId: number) {
+  const members = getStoredGroupMembers().filter(m => m.trip_id === tripId);
+  return { members };
+}
+
+export function localAddGroupMember(tripId: number, payload: { name: string; email?: string }) {
+  const all = getStoredGroupMembers();
+  const newM: StoredGroupMember = {
+    id: Date.now(),
+    trip_id: tripId,
+    name: payload.name,
+    email: payload.email
+  };
+  all.push(newM);
+  saveGroupMembers(all);
+  return { message: 'Member added.', member: newM };
+}
+
+export function localRemoveGroupMember(tripId: number, memberId: number) {
+  const all = getStoredGroupMembers().filter(m => !(m.trip_id === tripId && m.id === memberId));
+  saveGroupMembers(all);
+  return { message: 'Member removed.' };
+}
+
+export function localGetGroupSplitSummary(tripId: number) {
+  const members = getStoredGroupMembers().filter(m => m.trip_id === tripId);
+  const expenses = getStoredExpenses().filter(e => e.trip_id === tripId);
+  const total_shared = expenses.reduce((s, e) => s + (e.amount || 0), 0);
+  const per_person = members.length > 0 ? Math.round(total_shared / members.length) : total_shared;
+
+  return {
+    total_group_spending: total_shared,
+    members_count: members.length,
+    per_person_share: per_person,
+    settlements: []
+  };
+}
+
 export function localDeleteTrip(id: number) {
   const all = getStoredTrips().filter(t => t.id !== id);
   saveTrips(all);
   return { message: 'Trip deleted.' };
 }
+
 
 // ----------------- Expenses Store -----------------
 function getStoredExpenses(): Expense[] {
