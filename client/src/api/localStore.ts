@@ -915,46 +915,291 @@ function saveReceipts(receipts: Receipt[]) {
 
 export function localGetReceipts(params?: any) {
   let list = getStoredReceipts();
+
   if (params?.trip_id) {
-    list = list.filter(r => r.trip_id === params.trip_id);
+    list = list.filter(r => String(r.trip_id) === String(params.trip_id));
   }
-  const total_amount = list.reduce((s, r) => s + (r.amount || 0), 0);
+  if (params?.category && params.category !== 'all') {
+    list = list.filter(r => (r.category || '').toLowerCase() === String(params.category).toLowerCase());
+  }
+  if (params?.search) {
+    const q = String(params.search).toLowerCase();
+    list = list.filter(r =>
+      (r.title && r.title.toLowerCase().includes(q)) ||
+      (r.merchant_name && r.merchant_name.toLowerCase().includes(q)) ||
+      (r.notes && r.notes.toLowerCase().includes(q))
+    );
+  }
+  if (params?.start_date) {
+    list = list.filter(r => r.date >= params.start_date);
+  }
+  if (params?.end_date) {
+    list = list.filter(r => r.date <= params.end_date);
+  }
+
+  const validCategories = ['food', 'transport', 'accommodation', 'shopping', 'activities', 'other'];
+  const by_category: Record<string, number> = {};
+  validCategories.forEach(c => { by_category[c] = 0; });
+
+  let total_amount = 0;
+  let linked_count = 0;
+  let unlinked_count = 0;
+
+  list.forEach(r => {
+    const amt = r.amount || 0;
+    total_amount += amt;
+    const cat = (r.category || 'other').toLowerCase();
+    if (by_category[cat] !== undefined) {
+      by_category[cat] += amt;
+    } else {
+      by_category['other'] = (by_category['other'] || 0) + amt;
+    }
+    if (r.is_expense_created || r.expense_id) {
+      linked_count++;
+    } else {
+      unlinked_count++;
+    }
+  });
+
   return {
     receipts: list,
     summary: {
       total_count: list.length,
-      total_amount,
-      currency: 'INR'
+      total_amount: Math.round(total_amount * 100) / 100,
+      by_category,
+      linked_count,
+      unlinked_count,
+      currencies: ['INR']
     }
   };
 }
 
 export function localCreateReceipt(payload: any) {
   const all = getStoredReceipts();
+
+  let title = 'Receipt Document';
+  let merchant_name = '';
+  let amount = 0;
+  let currency = 'INR';
+  let date = new Date().toISOString().split('T')[0];
+  let category = 'food';
+  let payment_method = 'credit_card';
+  let notes = '';
+  let trip_id: number | null = null;
+  let file_name = 'receipt.jpg';
+  let mime_type = 'image/jpeg';
+  let file_url = 'https://images.unsplash.com/photo-1554415707-9e4c07d3882d?auto=format&fit=crop&w=600&q=80';
+  let create_linked_expense = false;
+
+  if (typeof FormData !== 'undefined' && payload instanceof FormData) {
+    title = (payload.get('title') as string) || title;
+    merchant_name = (payload.get('merchant_name') as string) || '';
+    amount = parseFloat(payload.get('amount') as string) || 0;
+    currency = (payload.get('currency') as string) || currency;
+    date = (payload.get('date') as string) || date;
+    category = (payload.get('category') as string) || category;
+    payment_method = (payload.get('payment_method') as string) || payment_method;
+    notes = (payload.get('notes') as string) || '';
+    const tId = payload.get('trip_id');
+    if (tId) trip_id = Number(tId);
+    create_linked_expense = payload.get('create_linked_expense') === 'true' || payload.get('create_linked_expense') === '1';
+
+    const file = payload.get('file') as File | null;
+    if (file && typeof file === 'object' && file.name) {
+      file_name = file.name;
+      mime_type = file.type || (file.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+      if (typeof URL !== 'undefined' && URL.createObjectURL) {
+        try {
+          file_url = URL.createObjectURL(file);
+        } catch {}
+      }
+    }
+  } else {
+    title = payload.title || title;
+    merchant_name = payload.merchant_name || '';
+    amount = parseFloat(payload.amount) || 0;
+    currency = payload.currency || currency;
+    date = payload.date || date;
+    category = payload.category || category;
+    payment_method = payload.payment_method || payment_method;
+    notes = payload.notes || '';
+    if (payload.trip_id) trip_id = Number(payload.trip_id);
+    file_name = payload.file_name || payload.filename || file_name;
+    mime_type = payload.mime_type || mime_type;
+    create_linked_expense = Boolean(payload.create_linked_expense);
+  }
+
+  let expense_id: number | null = null;
+  let is_expense_created = 0;
+
+  if (create_linked_expense && trip_id) {
+    const expenses = getStoredExpenses();
+    const newExp: Expense = {
+      id: Date.now(),
+      trip_id,
+      title: merchant_name ? `${merchant_name} (${title})` : title,
+      category,
+      amount,
+      currency,
+      date,
+      notes: notes ? `[Receipt: ${file_name}] ${notes}` : `[Receipt: ${file_name}]`,
+      payer_name: getCurrentUserLocal()?.name || 'Self',
+      is_shared: 0
+    };
+    expenses.unshift(newExp);
+    saveExpenses(expenses);
+
+    expense_id = newExp.id;
+    is_expense_created = 1;
+
+    // Update trip total spent
+    const trips = getStoredTrips();
+    const tIdx = trips.findIndex(t => t.id === trip_id);
+    if (tIdx !== -1) {
+      trips[tIdx].total_spent = (trips[tIdx].total_spent || 0) + amount;
+      trips[tIdx].remaining_budget = Math.max(0, trips[tIdx].total_budget - trips[tIdx].total_spent);
+      trips[tIdx].budget_utilization_pct = Math.round((trips[tIdx].total_spent / trips[tIdx].total_budget) * 100);
+      saveTrips(trips);
+    }
+  }
+
   const newR: Receipt = {
     id: Date.now(),
     user_id: getCurrentUserLocal()?.id || 1,
-    trip_id: payload.trip_id || null,
-    title: payload.title || 'Receipt Document',
-    amount: parseFloat(payload.amount) || 0,
-    currency: payload.currency || 'INR',
-    date: payload.date || new Date().toISOString().split('T')[0],
-    category: payload.category || 'food',
-    payment_method: payload.payment_method || 'card',
-    notes: payload.notes || '',
-    file_name: payload.filename || payload.file_name || 'receipt.jpg',
+    trip_id,
+    title,
+    merchant_name,
+    amount,
+    currency,
+    date,
+    category,
+    payment_method,
+    notes,
+    file_name,
     file_path: 'local_receipt',
-    file_url: 'https://images.unsplash.com/photo-1554415707-9e4c07d3882d?auto=format&fit=crop&w=600&q=80',
-    mime_type: payload.mime_type || 'image/jpeg',
+    file_url,
+    mime_type,
     file_size: 102400,
     ocr_applied: 1,
-    is_expense_created: 0,
+    is_expense_created,
+    expense_id,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
+
   all.unshift(newR);
   saveReceipts(all);
   return { message: 'Receipt saved.', receipt: newR };
+}
+
+export function localGetReceipt(id: number) {
+  const all = getStoredReceipts();
+  const rec = all.find(r => r.id === id);
+  if (!rec) throw new Error('Receipt not found.');
+  return { receipt: rec };
+}
+
+export function localUpdateReceipt(id: number, payload: any) {
+  const all = getStoredReceipts();
+  const idx = all.findIndex(r => r.id === id);
+  if (idx === -1) throw new Error('Receipt not found.');
+
+  const rec = all[idx];
+  all[idx] = {
+    ...rec,
+    title: payload.title !== undefined ? payload.title : rec.title,
+    merchant_name: payload.merchant_name !== undefined ? payload.merchant_name : rec.merchant_name,
+    amount: payload.amount !== undefined ? parseFloat(payload.amount) : rec.amount,
+    currency: payload.currency !== undefined ? payload.currency : rec.currency,
+    date: payload.date !== undefined ? payload.date : rec.date,
+    category: payload.category !== undefined ? payload.category : rec.category,
+    payment_method: payload.payment_method !== undefined ? payload.payment_method : rec.payment_method,
+    notes: payload.notes !== undefined ? payload.notes : rec.notes,
+    trip_id: payload.trip_id !== undefined ? (payload.trip_id ? Number(payload.trip_id) : null) : rec.trip_id,
+    updated_at: new Date().toISOString()
+  };
+
+  if (payload.sync_linked_expense && rec.expense_id) {
+    const expenses = getStoredExpenses();
+    const eIdx = expenses.findIndex(e => e.id === rec.expense_id);
+    if (eIdx !== -1) {
+      expenses[eIdx] = {
+        ...expenses[eIdx],
+        title: all[idx].merchant_name ? `${all[idx].merchant_name} (${all[idx].title})` : all[idx].title,
+        amount: all[idx].amount,
+        category: all[idx].category,
+        date: all[idx].date
+      };
+      saveExpenses(expenses);
+    }
+  }
+
+  saveReceipts(all);
+  return { message: 'Receipt updated successfully.', receipt: all[idx] };
+}
+
+export function localDeleteReceipt(id: number, deleteLinkedExpense?: boolean) {
+  const all = getStoredReceipts();
+  const rec = all.find(r => r.id === id);
+  if (!rec) return { message: 'Receipt deleted.' };
+
+  if (deleteLinkedExpense && rec.expense_id) {
+    localDeleteExpense(rec.expense_id);
+  }
+
+  const filtered = all.filter(r => r.id !== id);
+  saveReceipts(filtered);
+  return { message: 'Receipt deleted.' };
+}
+
+export function localConvertReceiptToExpense(id: number, payload: { trip_id?: number; category?: string; amount?: number; title?: string }) {
+  const all = getStoredReceipts();
+  const idx = all.findIndex(r => r.id === id);
+  if (idx === -1) throw new Error('Receipt not found.');
+  const rec = all[idx];
+
+  const tripId = payload.trip_id || rec.trip_id;
+  if (!tripId) throw new Error('A trip must be associated to create an expense.');
+
+  const expenses = getStoredExpenses();
+  const newExp: Expense = {
+    id: Date.now(),
+    trip_id: tripId,
+    title: payload.title || (rec.merchant_name ? `${rec.merchant_name} (${rec.title})` : rec.title),
+    category: payload.category || rec.category || 'food',
+    amount: payload.amount !== undefined ? payload.amount : rec.amount,
+    currency: rec.currency || 'INR',
+    date: rec.date || new Date().toISOString().split('T')[0],
+    notes: `[Linked from Receipt #${rec.id}] ${rec.notes || ''}`.trim(),
+    payer_name: getCurrentUserLocal()?.name || 'Self',
+    is_shared: 0
+  };
+
+  expenses.unshift(newExp);
+  saveExpenses(expenses);
+
+  all[idx].is_expense_created = 1;
+  all[idx].expense_id = newExp.id;
+  all[idx].trip_id = tripId;
+  saveReceipts(all);
+
+  const trips = getStoredTrips();
+  const tIdx = trips.findIndex(t => t.id === tripId);
+  if (tIdx !== -1) {
+    trips[tIdx].total_spent = (trips[tIdx].total_spent || 0) + newExp.amount;
+    trips[tIdx].remaining_budget = Math.max(0, trips[tIdx].total_budget - trips[tIdx].total_spent);
+    trips[tIdx].budget_utilization_pct = Math.round((trips[tIdx].total_spent / trips[tIdx].total_budget) * 100);
+    saveTrips(trips);
+  }
+
+  return { message: 'Expense created and linked.', expense: newExp, receipt: all[idx] };
+}
+
+export function localGetReceiptFileBlobUrl(id: number) {
+  const all = getStoredReceipts();
+  const rec = all.find(r => r.id === id);
+  if (rec && rec.file_url) return rec.file_url;
+  return 'https://images.unsplash.com/photo-1554415707-9e4c07d3882d?auto=format&fit=crop&w=600&q=80';
 }
 
 export function localUploadReceiptScan(formData: FormData) {

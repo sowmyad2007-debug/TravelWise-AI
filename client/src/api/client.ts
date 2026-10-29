@@ -18,6 +18,11 @@ import {
   localDeleteExpense,
   localGetReceipts,
   localCreateReceipt,
+  localGetReceipt,
+  localUpdateReceipt,
+  localDeleteReceipt,
+  localConvertReceiptToExpense,
+  localGetReceiptFileBlobUrl,
   localUploadReceiptScan,
   localGetDestinations,
   localResolveDestination,
@@ -352,7 +357,10 @@ export const api = {
   createReceipt: (payload: any) =>
     requestWithFallback<any>(
       '/receipts',
-      { method: 'POST', body: JSON.stringify(payload) },
+      {
+        method: 'POST',
+        body: payload instanceof FormData ? payload : JSON.stringify(payload)
+      },
       () => localCreateReceipt(payload)
     ),
   getReceipts: (params?: { trip_id?: number; category?: string; start_date?: string; end_date?: string; search?: string }) => {
@@ -369,14 +377,33 @@ export const api = {
       () => localGetReceipts(params)
     );
   },
-  getReceipt: (id: number) => request<{ receipt: any }>(`/receipts/${id}`),
-  updateReceipt: (id: number, payload: any) => request<any>(`/receipts/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  getReceipt: (id: number) =>
+    requestWithFallback<{ receipt: any }>(
+      `/receipts/${id}`,
+      {},
+      () => localGetReceipt(id)
+    ),
+  updateReceipt: (id: number, payload: any) =>
+    requestWithFallback<any>(
+      `/receipts/${id}`,
+      { method: 'PUT', body: JSON.stringify(payload) },
+      () => localUpdateReceipt(id, payload)
+    ),
   deleteReceipt: (id: number, deleteLinkedExpense?: boolean) =>
-    request<any>(`/receipts/${id}${deleteLinkedExpense ? '?delete_linked_expense=1' : ''}`, { method: 'DELETE' }),
+    requestWithFallback<any>(
+      `/receipts/${id}${deleteLinkedExpense ? '?delete_linked_expense=1' : ''}`,
+      { method: 'DELETE' },
+      () => localDeleteReceipt(id, deleteLinkedExpense)
+    ),
   convertReceiptToExpense: (id: number, payload: { trip_id?: number; category?: string; amount?: number; title?: string }) =>
-    request<any>(`/receipts/${id}/convert-to-expense`, { method: 'POST', body: JSON.stringify(payload) }),
+    requestWithFallback<any>(
+      `/receipts/${id}/convert-to-expense`,
+      { method: 'POST', body: JSON.stringify(payload) },
+      () => localConvertReceiptToExpense(id, payload)
+    ),
   downloadReceiptFile: (id: number, filename: string) => downloadBlob(`/receipts/${id}/file?download=1`, filename),
-  getReceiptFileBlobUrl: (id: number) => getAuthenticatedBlobUrl(`/receipts/${id}/file`),
+  getReceiptFileBlobUrl: (id: number) =>
+    getAuthenticatedBlobUrl(`/receipts/${id}/file`).catch(() => localGetReceiptFileBlobUrl(id)),
   exportReceiptsCsv: (params?: any) => {
     const q = new URLSearchParams(params || {}).toString();
     return downloadBlob(`/receipts/export${q ? `?${q}` : ''}`, `TravelWise_Receipts_${Date.now()}.csv`);
