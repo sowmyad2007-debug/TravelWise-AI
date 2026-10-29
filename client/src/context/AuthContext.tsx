@@ -33,6 +33,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.warn('Session verification failed, logging out.');
       localStorage.removeItem('travelwise_token');
+      localStorage.removeItem('travelwise_current_user');
       setToken(null);
       setUser(null);
     } finally {
