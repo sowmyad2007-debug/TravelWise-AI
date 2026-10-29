@@ -154,20 +154,37 @@ export async function getAuthenticatedBlobUrl(endpoint: string): Promise<string>
   return window.URL.createObjectURL(blob);
 }
 
+export function shouldBypassNetwork(): boolean {
+  if (typeof window !== 'undefined') {
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    // If running in production (e.g. deployed on Vercel) and API_BASE is relative '/api' (no external backend URL configured),
+    // Vercel only hosts static files and has no backend handler for /api, so execute through local store directly
+    if (!isLocalhost && !API_BASE.startsWith('http://') && !API_BASE.startsWith('https://')) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export async function requestWithFallback<T>(
   endpoint: string,
   options: RequestInit,
   fallbackFn: () => Promise<T> | T
 ): Promise<T> {
+  // If deployed without a remote backend URL, immediately execute through resilient local store
+  if (shouldBypassNetwork()) {
+    return await fallbackFn();
+  }
+
   try {
     return await request<T>(endpoint, options);
   } catch (err: any) {
-    // If backend returns 404 (endpoint not found / no backend running on Vercel)
-    // or status 0 / connection error (server unreachable)
-    // or status 502 / 503 / 504
+    // If backend returns 404, 405 (Method Not Allowed on static hosts), 500, 502, 503, 504, 0 or network failure
     if (
       err.status === 404 ||
+      err.status === 405 ||
       err.status === 0 ||
+      err.status === 500 ||
       err.status === 502 ||
       err.status === 503 ||
       err.status === 504 ||
